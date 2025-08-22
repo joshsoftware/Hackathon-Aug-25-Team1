@@ -50,8 +50,7 @@ export function EmployeeActivityModal({ open, onOpenChange, onDataReceived }: Em
           { label: 'Code Commits', value: '47', trend: 'up' as const },
           { label: 'Pull Requests', value: '12', trend: 'up' as const },
           { label: 'Jira Tickets', value: '23', trend: 'stable' as const },
-          { label: 'Hours Logged', value: '38.5', trend: 'up' as const }
-        ]
+          ]
       };
       
       onDataReceived(mockData);
