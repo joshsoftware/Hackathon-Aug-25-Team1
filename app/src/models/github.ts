@@ -59,3 +59,17 @@ export async function fetchIssues(owner: string, repo: string): Promise<Issue[]>
   });
   return response.data;
 }
+
+export interface Collaborator {
+  login: string;
+  id: number;
+  avatar_url: string;
+  html_url: string;
+  type: string;
+  site_admin: boolean;
+}
+
+export async function fetchCollaborators(owner: string, repo: string): Promise<Collaborator[]> {
+  const response = await axiosInstance.get<Collaborator[]>(`/repos/${owner}/${repo}/collaborators`);
+  return response.data;
+}

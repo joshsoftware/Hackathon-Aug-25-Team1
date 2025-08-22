@@ -19,3 +19,14 @@ export async function getUserActivity(owner: string, repo: string): Promise<User
     issues,
   };
 }
+
+import { fetchCollaborators, Collaborator } from '../models/github';
+
+export interface CollaboratorsResponse {
+  collaborators: Collaborator[];
+}
+
+export async function getRepoCollaborators(owner: string, repo: string): Promise<CollaboratorsResponse> {
+  const collaborators = await fetchCollaborators(owner, repo);
+  return { collaborators };
+}
