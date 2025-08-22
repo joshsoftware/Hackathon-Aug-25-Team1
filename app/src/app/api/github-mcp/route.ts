@@ -68,9 +68,25 @@ export async function POST(request: NextRequest) {
         );
     }
 
+    // Parse the result if it's in text format
+    let parsedData = result;
+    if (result && result.content && Array.isArray(result.content)) {
+      for (const item of result.content) {
+        if (item.type === 'text' && item.text) {
+          try {
+            // Try to parse the text as JSON
+            parsedData = JSON.parse(item.text);
+            break;
+          } catch (e) {
+            console.error('Failed to parse JSON from text content:', e);
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       success: true,
-      data: result,
+      data: parsedData,
       activityType,
       timestamp: new Date().toISOString()
     });

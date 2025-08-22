@@ -119,6 +119,22 @@ If the prompt is unclear or missing required information, set "tool" to "clarifi
       default:
         throw new Error(`Unknown tool: ${analysis.tool}`);
     }
+    
+    // Parse the result if it's in text format
+    let parsedMcpResult = mcpResult;
+    if (mcpResult && mcpResult.content && Array.isArray(mcpResult.content)) {
+      for (const item of mcpResult.content) {
+        if (item.type === 'text' && item.text) {
+          try {
+            // Try to parse the text as JSON
+            parsedMcpResult = JSON.parse(item.text);
+            break;
+          } catch (e) {
+            console.error('Failed to parse JSON from text content:', e);
+          }
+        }
+      }
+    }
 
     // Now use Claude to format and summarize the results
     const summaryMessage = await anthropic.messages.create({
@@ -148,7 +164,7 @@ Please provide a helpful summary and analysis of this GitHub activity data. Form
       success: true,
       userPrompt: prompt,
       claudeAnalysis: analysis,
-      mcpData: mcpResult,
+      mcpData: parsedMcpResult,
       claudeSummary: summaryContent.text,
       timestamp: new Date().toISOString()
     });
