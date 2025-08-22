@@ -1,103 +1,313 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import { useState, useRef, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { SendHorizontalIcon } from 'lucide-react';
+
+// Define the message interface
+interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export default function Chat() {
+  // State for messages and input
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [streamingMessage, setStreamingMessage] = useState<Message | null>(null);
+  
+  // Reference for scrolling to bottom
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  
+  // Scroll to bottom when messages change
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  // Effect for scrolling to bottom when messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, streamingMessage?.content]);
+  
+  // Clean up event source on unmount
+  useEffect(() => {
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+      }
+    };
+  }, []);
+  
+  // Handle sending a message
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!input.trim() || isLoading) return;
+    
+    // Create a new user message
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: input.trim()
+    };
+    
+    // Add user message to the chat
+    setMessages(prev => [...prev, userMessage]);
+    
+    // Clear input
+    setInput('');
+    
+    // Set loading state
+    setIsLoading(true);
+    
+    // Clear any previous errors
+    setError(null);
+    
+    try {
+      // Use streaming by default with fetch API
+      await handleStreamingRequest([...messages, userMessage]);
+    } catch (err) {
+      console.error('Error sending message:', err);
+      setError(err instanceof Error ? err : new Error('An unknown error occurred'));
+      setIsLoading(false);
+    }
+  };
+  
+  // Handle streaming request
+  const handleStreamingRequest = async (messagesList: Message[]) => {
+    try {
+      // Create an empty streaming message
+      const newStreamingMessage: Message = {
+        id: `streaming-${Date.now()}`,
+        role: 'assistant',
+        content: ''
+      };
+      
+      setStreamingMessage(newStreamingMessage);
+      
+      // Use fetch with ReadableStream instead of EventSource
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
+        body: JSON.stringify({
+          messages: messagesList
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+      
+      // Get a reader from the response body
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      
+      // Function to process the stream
+      const processStream = async () => {
+        let buffer = '';
+        
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+              console.log('Stream complete');
+              break;
+            }
+            
+            // Decode the chunk and add it to our buffer
+            buffer += decoder.decode(value, { stream: true });
+            
+            // Process events in the buffer
+            const events = buffer.split('\n\n');
+            buffer = events.pop() || ''; // Keep the last incomplete event in the buffer
+            
+            for (const event of events) {
+              if (!event.trim()) continue;
+              
+              const eventLines = event.split('\n');
+              const eventType = eventLines[0].replace(/^event: /, '');
+              const eventData = eventLines[1]?.replace(/^data: /, '');
+              
+              if (!eventType || !eventData) continue;
+              
+              try {
+                const data = JSON.parse(eventData);
+                
+                // Handle different event types
+                switch (eventType) {
+                  case 'text':
+                    setStreamingMessage(prev => {
+                      if (!prev) return null;
+                      return {
+                        ...prev,
+                        content: prev.content + (data.text || '')
+                      };
+                    });
+                    break;
+                    
+                  case 'message_start':
+                    if (data.id) {
+                      setStreamingMessage(prev => prev ? { ...prev, id: data.id } : null);
+                    }
+                    break;
+                    
+                  case 'message_stop':
+                    // Add the final message to the messages list
+                    setMessages(prev => [...prev, {
+                      id: data.id || `assistant-${Date.now()}`,
+                      role: 'assistant',
+                      content: data.content || (streamingMessage?.content || '')
+                    }]);
+                    
+                    // Clean up
+                    setStreamingMessage(null);
+                    setIsLoading(false);
+                    reader.cancel();
+                    return;
+                    
+                  case 'error':
+                    throw new Error(data.error || 'Unknown streaming error');
+                    
+                  default:
+                    console.log(`Unhandled event type: ${eventType}`, data);
+                }
+              } catch (err) {
+                console.error(`Error processing ${eventType} event:`, err, eventData);
+              }
+            }
+          }
+          
+          // If we get here without a message_stop event, finalize anyway
+          setMessages(prev => {
+            if (!streamingMessage) return prev;
+            return [...prev, {
+              id: `auto-completed-${Date.now()}`,
+              role: 'assistant',
+              content: streamingMessage.content
+            }];
+          });
+          
+        } catch (err) {
+          console.error('Error processing stream:', err);
+          setError(err instanceof Error ? err : new Error('Error processing stream'));
+          reader.cancel();
+        } finally {
+          setStreamingMessage(null);
+          setIsLoading(false);
+        }
+      };
+      
+      // Start processing the stream
+      processStream();
+      
+    } catch (err) {
+      console.error('Error setting up streaming:', err);
+      setError(err instanceof Error ? err : new Error('Failed to set up streaming'));
+      setIsLoading(false);
+      setStreamingMessage(null);
+    }
+  };
+  
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <div className="flex flex-col h-screen justify-between items-center">
+      {/* Header */}
+      <div className="w-full border-b bg-background px-4 py-2 flex justify-between items-center">
+        <h1 className="text-lg font-semibold">Claude Chat</h1>
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+      {/* Main Area */}
+      <div className="flex flex-1 w-full overflow-hidden">
+        <div className="flex flex-col flex-1 overflow-y-scroll bg-background p-4">
+          {/* Error display */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              <p className="font-bold">Error</p>
+              <p>{error.message || "An unknown error occurred"}</p>
+            </div>
+          )}
+          
+          {/* Welcome message if no messages */}
+          {messages.length === 0 && !streamingMessage && (
+            <div className="text-center text-gray-500 my-8">
+              <p className="text-lg mb-2">Welcome to Claude Chat!</p>
+              <p>Send a message to start chatting with Claude.</p>
+            </div>
+          )}
+          
+          {/* Messages */}
+          {messages.map((message) => (
+            <div 
+              key={message.id} 
+              className={`mb-4 p-3 rounded-lg ${
+                message.role === 'user' 
+                  ? 'bg-blue-100 ml-auto max-w-[80%]' 
+                  : 'bg-gray-100 max-w-[80%]'
+              }`}
+            >
+              <div className="font-medium mb-1">{message.role === 'user' ? 'You' : 'Claude'}</div>
+              <div className="whitespace-pre-wrap">{message.content}</div>
+            </div>
+          ))}
+          
+          {/* Streaming message (shows as it's being generated) */}
+          {streamingMessage && (
+            <div className="mb-4 p-3 rounded-lg bg-gray-100 max-w-[80%]">
+              <div className="font-medium mb-1">Claude</div>
+              <div className="whitespace-pre-wrap">{streamingMessage.content}</div>
+              <div className="h-4 mt-1">
+                <div className="animate-pulse bg-gray-300 rounded-full h-2 w-8 inline-block"></div>
+              </div>
+            </div>
+          )}
+          
+          {/* Loading indicator (only show if not streaming) */}
+          {isLoading && !streamingMessage && (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-pulse bg-gray-200 rounded-full h-2 w-16"></div>
+            </div>
+          )}
+          
+          {/* Invisible div at the end for auto-scrolling */}
+          <div ref={messagesEndRef} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+
+      {/* Input Area */}
+      <div className="flex justify-center items-center w-full bg-background border-t">
+        <form onSubmit={handleSubmit} className="w-full max-w-2xl mx-auto p-4 flex items-center gap-2">
+          <Input
+            disabled={isLoading}
+            className="flex w-full rounded-2xl border-input bg-background px-4 py-6"
+            value={input}
+            placeholder={isLoading ? "Claude is thinking..." : "Ask something..."}
+            onChange={(e) => setInput(e.target.value)}
+            name="prompt"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <Button 
+            type="submit" 
+            size="icon" 
+            className="rounded-full h-12 w-12 flex items-center justify-center" 
+            disabled={isLoading || !input.trim()}
+          >
+            <SendHorizontalIcon size={18} />
+          </Button>
+        </form>
+      </div>
     </div>
   );
 }
