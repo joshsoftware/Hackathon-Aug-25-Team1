@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { MessageCircle, Users, UserCheck, Send, Download, TrendingUp, Activity, User, Bot } from "lucide-react";
+import { MessageCircle, Users, UserCheck, Send, Download, TrendingUp, Activity, User, Bot, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { EmployeeActivityModal } from "@/components/EmployeeActivityModal";
 import { TeamActivityModal } from "@/components/TeamActivityModal";
+import { AgentLogo } from "@/components/AgentLogo";
 
 const quickActions = [
   {
@@ -44,7 +45,7 @@ export function ChatInterface() {
     {
       id: "1",
       type: "bot",
-      content: "Welcome! How can I help you track employee activity today? You can ask me about specific employee or team performance, or choose from the quick actions below:",
+      content: "👋 Hello! I'm your WorkFlow Agent, ready to help you analyze employee activity and team performance. You can ask me about specific employees, team metrics, Jira tickets, GitHub activity, or use the quick actions below to get started:",
       timestamp: new Date(),
     }
   ]);
@@ -199,16 +200,20 @@ export function ChatInterface() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="p-3 bg-primary rounded-xl">
-              <Activity className="h-8 w-8 text-primary-foreground" />
+          <div className="inline-flex items-center gap-4 mb-4">
+            <AgentLogo size="lg" animated={true} />
+            <div className="text-left">
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
+                WorkFlow Agent
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <Sparkles className="h-4 w-4 text-blue-500" />
+                <span className="text-sm text-muted-foreground font-medium">AI-Powered Analytics</span>
+              </div>
             </div>
-            <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              Employee Activity Logger
-            </h1>
           </div>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Track, analyze, and optimize your team's productivity with comprehensive activity monitoring and insights.
+            Your intelligent assistant for tracking, analyzing, and optimizing team productivity with real-time insights and comprehensive activity monitoring.
           </p>
         </div>
 
@@ -319,11 +324,11 @@ export function ChatInterface() {
             <div className="flex gap-2">
               <Textarea
                 ref={textareaRef}
-                placeholder="Ask about employee activity, team performance, Jira tickets, GitHub commits..."
+                placeholder="💬 Ask me anything: 'Show Sarah's Jira activity', 'Team performance this week', 'GitHub commits today'..."
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyPress={handleKeyPress}
-                className="min-h-[40px] max-h-[120px] resize-none"
+                className="min-h-[40px] max-h-[120px] resize-none bg-gradient-to-r from-background to-secondary/20 border-2 border-transparent focus:border-blue-500/30 transition-all duration-200"
                 rows={1}
               />
               <Button 
