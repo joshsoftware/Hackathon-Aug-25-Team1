@@ -3,7 +3,15 @@ import { getMCPClient } from '@/lib/mcp-client';
 
 export async function POST(request: NextRequest) {
   try {
-    const { owner, repo, username, activityType = 'activity', limit = 30 } = await request.json();
+    const { 
+      owner, 
+      repo, 
+      username, 
+      activityType = 'activity', 
+      limit = 30,
+      fromDate,
+      toDate
+    } = await request.json();
 
     // Get the MCP client instance
     const mcpClient = await getMCPClient();
@@ -18,7 +26,7 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        result = await mcpClient.getUserActivity(username, limit);
+        result = await mcpClient.getUserActivity(username, limit, fromDate, toDate);
         break;
         
       case 'activity':
@@ -28,7 +36,7 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        result = await mcpClient.getRepoActivity(owner, repo, limit);
+        result = await mcpClient.getRepoActivity(owner, repo, limit, fromDate, toDate);
         break;
         
       case 'commits':
@@ -38,7 +46,7 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        result = await mcpClient.getRepoCommits(owner, repo, limit);
+        result = await mcpClient.getRepoCommits(owner, repo, limit, fromDate, toDate);
         break;
         
       case 'issues':
@@ -48,7 +56,7 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        result = await mcpClient.getRepoIssues(owner, repo, 'all', limit);
+        result = await mcpClient.getRepoIssues(owner, repo, 'all', limit, fromDate, toDate);
         break;
         
       case 'pulls':
@@ -58,7 +66,7 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
-        result = await mcpClient.getRepoPullRequests(owner, repo, 'all', limit);
+        result = await mcpClient.getRepoPullRequests(owner, repo, 'all', limit, fromDate, toDate);
         break;
         
       default:
@@ -83,13 +91,73 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+    
+    // Apply date filtering on our side since the MCP server doesn't support it
+    if (parsedData && (fromDate || toDate)) {
+      const fromTimestamp = fromDate ? new Date(fromDate).getTime() : 0;
+      const toTimestamp = toDate ? new Date(toDate).getTime() : Infinity;
+      
+      // Filter commits if present
+      if (parsedData.commits && Array.isArray(parsedData.commits)) {
+        const filteredCommits = parsedData.commits.filter((commit: { date: string }) => {
+          const commitDate = new Date(commit.date).getTime();
+          return commitDate >= fromTimestamp && commitDate <= toTimestamp;
+        });
+        
+        parsedData.commits = filteredCommits;
+        parsedData.total_commits = filteredCommits.length;
+      }
+      
+      // Filter issues if present
+      if (parsedData.issues && Array.isArray(parsedData.issues)) {
+        const filteredIssues = parsedData.issues.filter((issue: { created_at: string }) => {
+          const issueDate = new Date(issue.created_at).getTime();
+          return issueDate >= fromTimestamp && issueDate <= toTimestamp;
+        });
+        
+        parsedData.issues = filteredIssues;
+        parsedData.total_issues = filteredIssues.length;
+      }
+      
+      // Filter pull requests if present
+      if (parsedData.pull_requests && Array.isArray(parsedData.pull_requests)) {
+        const filteredPRs = parsedData.pull_requests.filter((pr: { created_at: string }) => {
+          const prDate = new Date(pr.created_at).getTime();
+          return prDate >= fromTimestamp && prDate <= toTimestamp;
+        });
+        
+        parsedData.pull_requests = filteredPRs;
+        parsedData.total_pull_requests = filteredPRs.length;
+      }
+      
+      // Filter events if present
+      if (parsedData.events && Array.isArray(parsedData.events)) {
+        const filteredEvents = parsedData.events.filter((event: { created_at: string }) => {
+          const eventDate = new Date(event.created_at).getTime();
+          return eventDate >= fromTimestamp && eventDate <= toTimestamp;
+        });
+        
+        parsedData.events = filteredEvents;
+        parsedData.total_events = filteredEvents.length;
+      }
+    }
 
-    return NextResponse.json({
+    // Add date range to response if provided
+    const responseData: any = {
       success: true,
       data: parsedData,
       activityType,
       timestamp: new Date().toISOString()
-    });
+    };
+    
+    if (fromDate || toDate) {
+      responseData.date_range = {
+        from: fromDate || 'not specified',
+        to: toDate || 'not specified'
+      };
+    }
+    
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error calling MCP server:', error);

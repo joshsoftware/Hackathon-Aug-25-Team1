@@ -9,6 +9,10 @@ interface GitHubActivity {
   total_commits?: number;
   total_issues?: number;
   total_pull_requests?: number;
+  date_range?: {
+    from: string;
+    to: string;
+  };
   events?: Array<{
     id: string;
     type: string;
@@ -53,6 +57,11 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [rawResponse, setRawResponse] = useState<any>(null);
   
+  // Date range state
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [useDateRange, setUseDateRange] = useState(false);
+  
   // New state for Claude-MCP integration
   const [prompt, setPrompt] = useState('');
   const [claudeLoading, setClaudeLoading] = useState(false);
@@ -68,12 +77,21 @@ export default function Home() {
     setRawResponse(null);
 
     try {
+      // Prepare request payload
+      const payload: any = { owner, repo, activityType };
+      
+      // Add date range if enabled
+      if (useDateRange) {
+        if (fromDate) payload.fromDate = fromDate;
+        if (toDate) payload.toDate = toDate;
+      }
+      
       const response = await fetch('/api/github-mcp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ owner, repo, activityType }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -98,12 +116,21 @@ export default function Home() {
     setClaudeResponse(null);
 
     try {
+      // Prepare request payload
+      const payload: any = { prompt };
+      
+      // Add date range if enabled
+      if (useDateRange) {
+        if (fromDate) payload.fromDate = fromDate;
+        if (toDate) payload.toDate = toDate;
+      }
+      
       const response = await fetch('/api/claude-mcp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify(payload),
       });
 
       const result = await response.json();
@@ -277,10 +304,57 @@ export default function Home() {
 • What are the latest commits in microsoft/vscode?
 • Get the open issues for torvalds/linux
 • Show pull requests for vercel/next.js
-• What has octocat been up to lately?"
+• What has octocat been up to lately?
+• Show me commits for facebook/react from last month
+• Get issues for microsoft/vscode created in the past week"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 h-32 resize-vertical"
                     required
                   />
+                </div>
+                
+                {/* Date Range Controls for Prompt Tab */}
+                <div className="mt-4">
+                  <div className="flex items-center mb-2">
+                    <input
+                      type="checkbox"
+                      id="useDateRangePrompt"
+                      checked={useDateRange}
+                      onChange={(e) => setUseDateRange(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="useDateRangePrompt" className="ml-2 block text-sm font-medium text-gray-700">
+                      Add Specific Date Range (overrides dates in prompt)
+                    </label>
+                  </div>
+                  
+                  {useDateRange && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <label htmlFor="fromDatePrompt" className="block text-sm font-medium text-gray-700 mb-1">
+                          From Date
+                        </label>
+                        <input
+                          type="date"
+                          id="fromDatePrompt"
+                          value={fromDate}
+                          onChange={(e) => setFromDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="toDatePrompt" className="block text-sm font-medium text-gray-700 mb-1">
+                          To Date
+                        </label>
+                        <input
+                          type="date"
+                          id="toDatePrompt"
+                          value={toDate}
+                          onChange={(e) => setToDate(e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="submit"
@@ -327,22 +401,67 @@ export default function Home() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="activityType" className="block text-sm font-medium text-gray-700 mb-1">
-                Activity Type
-              </label>
-              <select
-                id="activityType"
-                value={activityType}
-                onChange={(e) => setActivityType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="activity">Recent Activity</option>
-                <option value="commits">Recent Commits</option>
-                <option value="issues">Issues</option>
-                <option value="pulls">Pull Requests</option>
-              </select>
-            </div>
+              <div>
+                <label htmlFor="activityType" className="block text-sm font-medium text-gray-700 mb-1">
+                  Activity Type
+                </label>
+                <select
+                  id="activityType"
+                  value={activityType}
+                  onChange={(e) => setActivityType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="activity">Recent Activity</option>
+                  <option value="commits">Recent Commits</option>
+                  <option value="issues">Issues</option>
+                  <option value="pulls">Pull Requests</option>
+                </select>
+              </div>
+              
+              {/* Date Range Controls */}
+              <div className="mt-4">
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    id="useDateRange"
+                    checked={useDateRange}
+                    onChange={(e) => setUseDateRange(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="useDateRange" className="ml-2 block text-sm font-medium text-gray-700">
+                    Specify Date Range
+                  </label>
+                </div>
+                
+                {useDateRange && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label htmlFor="fromDate" className="block text-sm font-medium text-gray-700 mb-1">
+                        From Date
+                      </label>
+                      <input
+                        type="date"
+                        id="fromDate"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="toDate" className="block text-sm font-medium text-gray-700 mb-1">
+                        To Date
+                      </label>
+                      <input
+                        type="date"
+                        id="toDate"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <button
                 type="submit"

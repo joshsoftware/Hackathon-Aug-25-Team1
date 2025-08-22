@@ -165,24 +165,39 @@ export class MCPClient {
     });
   }
 
-  async getUserActivity(username: string, limit: number = 30): Promise<any> {
-    return this.callTool('get_user_activity', { username, limit });
+  async getUserActivity(username: string, limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { username, limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_user_activity', params);
   }
 
-  async getRepoActivity(owner: string, repo: string, limit: number = 30): Promise<any> {
-    return this.callTool('get_repo_activity', { owner, repo, limit });
+  async getRepoActivity(owner: string, repo: string, limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { owner, repo, limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_repo_activity', params);
   }
 
-  async getRepoCommits(owner: string, repo: string, limit: number = 30): Promise<any> {
-    return this.callTool('get_repo_commits', { owner, repo, limit });
+  async getRepoCommits(owner: string, repo: string, limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { owner, repo, limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_repo_commits', params);
   }
 
-  async getRepoIssues(owner: string, repo: string, state: string = 'open', limit: number = 30): Promise<any> {
-    return this.callTool('get_repo_issues', { owner, repo, state, limit });
+  async getRepoIssues(owner: string, repo: string, state: string = 'open', limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { owner, repo, state, limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_repo_issues', params);
   }
 
-  async getRepoPullRequests(owner: string, repo: string, state: string = 'open', limit: number = 30): Promise<any> {
-    return this.callTool('get_repo_pull_requests', { owner, repo, state, limit });
+  async getRepoPullRequests(owner: string, repo: string, state: string = 'open', limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { owner, repo, state, limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_repo_pull_requests', params);
   }
 
   async close(): Promise<void> {

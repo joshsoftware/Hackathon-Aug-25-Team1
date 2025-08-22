@@ -8,7 +8,7 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
-    const { prompt } = await request.json();
+    const { prompt, fromDate, toDate } = await request.json();
 
     if (!prompt) {
       return NextResponse.json(
@@ -18,13 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     // First, use Claude to understand the user's intent and extract parameters
-    const analysisMessage = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1000,
-      messages: [
-        {
-          role: 'user',
-          content: `Analyze this GitHub activity request and extract the parameters needed to call the appropriate MCP server tool. 
+    let promptContent = `Analyze this GitHub activity request and extract the parameters needed to call the appropriate MCP server tool. 
 
 User prompt: "${prompt}"
 
@@ -35,14 +29,33 @@ Available MCP tools:
 - get_repo_issues: requires owner and repo, optional state and limit
 - get_repo_pull_requests: requires owner and repo, optional state and limit
 
-Respond with a JSON object containing:
+All tools support date range parameters:
+- since: ISO date string for start date (e.g., "2025-01-01")
+- until: ISO date string for end date (e.g., "2025-08-22")`;
+
+    // Add date range information if provided
+    if (fromDate || toDate) {
+      promptContent += `\n\nIMPORTANT: The user has explicitly specified a date range that should override any dates mentioned in the prompt:`;
+      if (fromDate) promptContent += `\n- From date: ${fromDate}`;
+      if (toDate) promptContent += `\n- To date: ${toDate}`;
+    }
+
+    promptContent += `\n\nRespond with a JSON object containing:
 {
   "tool": "tool_name",
   "parameters": { "param1": "value1", "param2": "value2" },
   "explanation": "Brief explanation of what you understood from the prompt"
 }
 
-If the prompt is unclear or missing required information, set "tool" to "clarification_needed" and explain what's missing in the explanation field.`
+If the prompt is unclear or missing required information, set "tool" to "clarification_needed" and explain what's missing in the explanation field.`;
+
+    const analysisMessage = await anthropic.messages.create({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'user',
+          content: promptContent
         }
       ]
     });
@@ -79,25 +92,35 @@ If the prompt is unclear or missing required information, set "tool" to "clarifi
     const mcpClient = await getMCPClient();
     let mcpResult;
 
+    // Use explicit date parameters if provided, otherwise use dates from Claude's analysis
+    const since = fromDate || analysis.parameters.since;
+    const until = toDate || analysis.parameters.until;
+    
     switch (analysis.tool) {
       case 'get_user_activity':
         mcpResult = await mcpClient.getUserActivity(
           analysis.parameters.username,
-          analysis.parameters.limit || 30
+          analysis.parameters.limit || 30,
+          since,
+          until
         );
         break;
       case 'get_repo_activity':
         mcpResult = await mcpClient.getRepoActivity(
           analysis.parameters.owner,
           analysis.parameters.repo,
-          analysis.parameters.limit || 30
+          analysis.parameters.limit || 30,
+          since,
+          until
         );
         break;
       case 'get_repo_commits':
         mcpResult = await mcpClient.getRepoCommits(
           analysis.parameters.owner,
           analysis.parameters.repo,
-          analysis.parameters.limit || 30
+          analysis.parameters.limit || 30,
+          since,
+          until
         );
         break;
       case 'get_repo_issues':
@@ -105,7 +128,9 @@ If the prompt is unclear or missing required information, set "tool" to "clarifi
           analysis.parameters.owner,
           analysis.parameters.repo,
           analysis.parameters.state || 'all',
-          analysis.parameters.limit || 30
+          analysis.parameters.limit || 30,
+          since,
+          until
         );
         break;
       case 'get_repo_pull_requests':
@@ -113,7 +138,9 @@ If the prompt is unclear or missing required information, set "tool" to "clarifi
           analysis.parameters.owner,
           analysis.parameters.repo,
           analysis.parameters.state || 'all',
-          analysis.parameters.limit || 30
+          analysis.parameters.limit || 30,
+          since,
+          until
         );
         break;
       default:
@@ -132,6 +159,64 @@ If the prompt is unclear or missing required information, set "tool" to "clarifi
           } catch (e) {
             console.error('Failed to parse JSON from text content:', e);
           }
+        }
+      }
+    }
+    
+    // Apply date filtering on our side since the MCP server doesn't support it properly
+    if (parsedMcpResult && (fromDate || toDate || since || until)) {
+      const fromTimestamp = fromDate || since ? new Date(fromDate || since).getTime() : 0;
+      const toTimestamp = toDate || until ? new Date(toDate || until).getTime() : Infinity;
+      
+      // Filter commits if present
+      if (parsedMcpResult.commits && Array.isArray(parsedMcpResult.commits)) {
+        const filteredCommits = parsedMcpResult.commits.filter((commit: { date: string }) => {
+          const commitDate = new Date(commit.date).getTime();
+          return commitDate >= fromTimestamp && commitDate <= toTimestamp;
+        });
+        
+        parsedMcpResult.commits = filteredCommits;
+        if (parsedMcpResult.total_commits !== undefined) {
+          parsedMcpResult.total_commits = filteredCommits.length;
+        }
+      }
+      
+      // Filter issues if present
+      if (parsedMcpResult.issues && Array.isArray(parsedMcpResult.issues)) {
+        const filteredIssues = parsedMcpResult.issues.filter((issue: { created_at: string }) => {
+          const issueDate = new Date(issue.created_at).getTime();
+          return issueDate >= fromTimestamp && issueDate <= toTimestamp;
+        });
+        
+        parsedMcpResult.issues = filteredIssues;
+        if (parsedMcpResult.total_issues !== undefined) {
+          parsedMcpResult.total_issues = filteredIssues.length;
+        }
+      }
+      
+      // Filter pull requests if present
+      if (parsedMcpResult.pull_requests && Array.isArray(parsedMcpResult.pull_requests)) {
+        const filteredPRs = parsedMcpResult.pull_requests.filter((pr: { created_at: string }) => {
+          const prDate = new Date(pr.created_at).getTime();
+          return prDate >= fromTimestamp && prDate <= toTimestamp;
+        });
+        
+        parsedMcpResult.pull_requests = filteredPRs;
+        if (parsedMcpResult.total_pull_requests !== undefined) {
+          parsedMcpResult.total_pull_requests = filteredPRs.length;
+        }
+      }
+      
+      // Filter events if present
+      if (parsedMcpResult.events && Array.isArray(parsedMcpResult.events)) {
+        const filteredEvents = parsedMcpResult.events.filter((event: { created_at: string }) => {
+          const eventDate = new Date(event.created_at).getTime();
+          return eventDate >= fromTimestamp && eventDate <= toTimestamp;
+        });
+        
+        parsedMcpResult.events = filteredEvents;
+        if (parsedMcpResult.total_events !== undefined) {
+          parsedMcpResult.total_events = filteredEvents.length;
         }
       }
     }
@@ -160,14 +245,25 @@ Please provide a helpful summary and analysis of this GitHub activity data. Form
       throw new Error('Unexpected response format from Claude summary');
     }
 
-    return NextResponse.json({
+    // Prepare response data
+    const responseData: any = {
       success: true,
       userPrompt: prompt,
       claudeAnalysis: analysis,
       mcpData: parsedMcpResult,
       claudeSummary: summaryContent.text,
       timestamp: new Date().toISOString()
-    });
+    };
+    
+    // Add date range to response if provided
+    if (fromDate || toDate || analysis.parameters.since || analysis.parameters.until) {
+      responseData.date_range = {
+        from: fromDate || analysis.parameters.since || 'not specified',
+        to: toDate || analysis.parameters.until || 'not specified'
+      };
+    }
+    
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('Error in Claude-MCP integration:', error);
