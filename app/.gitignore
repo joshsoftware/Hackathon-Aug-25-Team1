@@ -1,41 +1,40 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# App-specific .gitignore
+# Root .gitignore handles most patterns, this covers app-specific items
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.*
-.yarn/*
-!.yarn/patches
-!.yarn/plugins
-!.yarn/releases
-!.yarn/versions
-
-# testing
-/coverage
-
-# next.js
+# Next.js app-specific
 /.next/
 /out/
-
-# production
 /build
 
-# misc
-.DS_Store
-*.pem
+# Next.js trace files (can cause permission issues on Windows)
+/.next/trace
+/.next/cache/
+/.next/server/
+/.next/static/
+/.next/standalone/
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
+# App-specific TypeScript
 *.tsbuildinfo
 next-env.d.ts
+
+# App-specific environment files
+.env*
+
+# App-specific build artifacts
+/dist/
+
+# App-specific testing
+/coverage
+
+# Vercel deployment
+.vercel
+
+# App-specific temporary files
+.turbo
+
+# Next.js build artifacts that may cause permission issues
+.next/trace
+.next/cache
+.next/server
+.next/static
+.next/standalone
