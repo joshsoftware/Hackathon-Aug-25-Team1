@@ -12,8 +12,6 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MenuIcon } from 'lucide-react';
 import Link from 'next/link'; // Assuming Next.js for routing
-import MemoryStatus from '@/components/memory/MemoryStatus';
-
 interface ChatSidebarProps {
   chatIds: string[]; // List of chat IDs
   // Potentially add props later if needed, e.g., for styling or behavior
@@ -54,10 +52,7 @@ export default function ChatSidebar({chatIds}: ChatSidebarProps) {
             )}
           </div>
         </ScrollArea>
-        
-        <div className="mt-4 mb-4">
-          <MemoryStatus />
-        </div>
+
          <div className="mt-4">
             <Button
                 variant="outline"
