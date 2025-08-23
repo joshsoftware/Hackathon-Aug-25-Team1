@@ -124,7 +124,7 @@ export default function Home() {
       const payload: any = { username, activityType };
       
       // Add owner and repo if needed for specific activity types
-      if (activityType === 'commits' || activityType === 'issues' || activityType === 'pulls') {
+      if (activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls') {
         payload.owner = owner;
         payload.repo = repo;
       }
@@ -475,6 +475,7 @@ export default function Home() {
                   <option value="commits">Recent Commits</option>
                   <option value="issues">Issues</option>
                   <option value="pulls">Pull Requests</option>
+                  <option value="merged_pulls">Merged Pull Requests</option>
                 </select>
               </div>
               
@@ -552,7 +553,7 @@ export default function Home() {
               </div>
               
               {/* Repository fields for specific activity types */}
-              {(activityType === 'commits' || activityType === 'issues' || activityType === 'pulls') && (
+              {(activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls') && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="ownerUser" className="block text-sm font-medium text-gray-700 mb-1">
@@ -599,6 +600,7 @@ export default function Home() {
                   <option value="commits">Recent Commits</option>
                   <option value="issues">Issues</option>
                   <option value="pulls">Pull Requests</option>
+                  <option value="merged_pulls">Merged Pull Requests</option>
                 </select>
               </div>
               

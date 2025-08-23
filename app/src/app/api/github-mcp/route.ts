@@ -69,6 +69,16 @@ export async function POST(request: NextRequest) {
         result = await mcpClient.getRepoPullRequests(owner, repo, 'all', limit, fromDate, toDate);
         break;
         
+      case 'merged_pulls':
+        if (!owner || !repo) {
+          return NextResponse.json(
+            { error: 'Owner and repo are required for merged pull requests' },
+            { status: 400 }
+          );
+        }
+        result = await mcpClient.getMergedPullRequests(owner, repo, limit, fromDate, toDate);
+        break;
+        
       default:
         return NextResponse.json(
           { error: 'Invalid activity type' },
@@ -142,6 +152,16 @@ export async function POST(request: NextRequest) {
           parsedData.events = filteredEvents;
           parsedData.total_events = filteredEvents.length;
         }
+      }
+      
+      // Post-process merged pull requests to only include those that are actually merged
+      if (activityType === 'merged_pulls' && parsedData.pull_requests && Array.isArray(parsedData.pull_requests)) {
+        const mergedPRs = parsedData.pull_requests.filter((pr: { merged_at: string | null }) => {
+          return pr.merged_at !== null;
+        });
+        
+        parsedData.pull_requests = mergedPRs;
+        parsedData.total_pull_requests = mergedPRs.length;
       }
       
       // Username filtering when both username and repository info are provided

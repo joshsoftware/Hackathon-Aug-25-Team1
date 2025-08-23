@@ -200,6 +200,13 @@ export class MCPClient {
     return this.callTool('get_repo_pull_requests', params);
   }
 
+  async getMergedPullRequests(owner: string, repo: string, limit: number = 30, fromDate?: string, toDate?: string): Promise<any> {
+    const params: any = { owner, repo, state: 'closed', limit };
+    if (fromDate) params.since = fromDate;
+    if (toDate) params.until = toDate;
+    return this.callTool('get_repo_pull_requests', params);
+  }
+
   async close(): Promise<void> {
     if (this.process) {
       this.process.kill();
