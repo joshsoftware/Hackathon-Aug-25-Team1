@@ -1,0 +1,30 @@
+[
+  {
+    "id": "msgc-I9V2CNLZmW6Csjgu",
+    "createdAt": "2025-08-23T07:13:59.254Z",
+    "role": "user",
+    "content": "hii",
+    "parts": [
+      {
+        "type": "text",
+        "text": "hii"
+      }
+    ]
+  },
+  {
+    "role": "assistant",
+    "id": "msgs-tYwlbkTa2sLYOub8",
+    "createdAt": "2025-08-23T07:14:01.763Z",
+    "content": "Hello! I'm an AI assistant with expertise in GitHub and Jira project management. How can I help you today? Is there any specific information you need about GitHub repositories, Jira projects, or any related tasks you'd like me to perform?",
+    "toolInvocations": [],
+    "parts": [
+      {
+        "type": "step-start"
+      },
+      {
+        "type": "text",
+        "text": "Hello! I'm an AI assistant with expertise in GitHub and Jira project management. How can I help you today? Is there any specific information you need about GitHub repositories, Jira projects, or any related tasks you'd like me to perform?"
+      }
+    ]
+  }
+]
