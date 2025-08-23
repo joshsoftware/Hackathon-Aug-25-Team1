@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,11 +8,14 @@ import {
   BotIcon,
   AlertCircleIcon,
   TerminalIcon,
-  ArrowRightIcon
+  ArrowRightIcon,
+  FileTextIcon,
+  TableIcon
 } from 'lucide-react';
 import { MemoizedMarkdown } from '@/components/memoised-markdown';
 import ChatLoader from '@/components/ChatLoader';
 import { AgentModeData } from '@/types';
+import { Button } from '@/components/ui/button';
 
 type Props = {
   messages: Message[]
@@ -22,6 +25,71 @@ type Props = {
 
 const ChatArea = (props: Props) => {
   const {messages, openAgentSidebar, isLoading} = props
+  const [reportGenerated, setReportGenerated] = useState(false);
+  
+  const generateReport = () => {
+    if (messages.length === 0) return;
+    
+    // Create a timestamp for the report
+    const timestamp = new Date().toLocaleString();
+    
+    // Generate CSV data for Excel
+    const csvRows = [];
+    
+    // Add header row
+    csvRows.push(['User ID', 'Timestamp', 'Role', 'Activity', 'Content']);
+    
+    // Process each message to extract user activity
+    messages.forEach((message, index) => {
+      const role = message.role;
+      const userId = role === 'user' ? 'User' : 'Assistant';
+      const messageTime = timestamp; // Using current timestamp as we don't have message timestamps
+      
+      // Extract text from message parts
+      const textParts = message.parts
+        ?.filter(part => part.type === 'text')
+        .map(part => (part.type === 'text' ? part.text : ''))
+        .join(' ') || '';
+      
+      // Determine activity type
+      let activity = role === 'user' ? 'User Message' : 'Assistant Response';
+      
+      // Check if the message contains tool invocations
+      const hasToolInvocation = message.parts?.some(part => part.type === 'tool-invocation');
+      if (hasToolInvocation) {
+        activity = 'Tool Usage';
+      }
+      
+      // Add the row to CSV data
+      // Escape quotes in content to prevent CSV issues
+      const escapedContent = textParts.replace(/"/g, '""');
+      csvRows.push([userId, messageTime, role, activity, `"${escapedContent}"`]);
+      
+      // We're not including tool details as per user request
+    });
+    
+    // Convert CSV rows to CSV string
+    const csvContent = csvRows.map(row => row.join(',')).join('\n');
+    
+    // Add BOM for Excel to recognize UTF-8
+    const BOM = '\uFEFF';
+    const csvWithBOM = BOM + csvContent;
+    
+    // Create a blob and download link
+    const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `chat-activity-report-${Date.now()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setReportGenerated(true);
+    setTimeout(() => setReportGenerated(false), 3000);
+  };
+  
   return (
     <ScrollArea className="flex-grow w-full overflow-y-auto">
       <div className="max-w-3xl mx-auto p-4 space-y-4">
@@ -125,6 +193,21 @@ const ChatArea = (props: Props) => {
         {/* Loading Indicator - considers pending confirmation */}
         {isLoading && (
           <ChatLoader/>
+        )}
+        
+        {/* Generate Report Button */}
+        {messages.length > 0 && !isLoading && (
+          <div className="flex justify-center mt-6 mb-4 sticky bottom-2">
+            <Button 
+              onClick={generateReport}
+              className={`flex items-center gap-2 ${reportGenerated ? 'bg-green-600 hover:bg-green-700' : 'bg-primary hover:bg-primary/90'}`}
+              variant={reportGenerated ? "outline" : "default"}
+              size="lg"
+            >
+              <TableIcon size={16} />
+              {reportGenerated ? 'Excel Report Downloaded!' : 'Generate Excel Report'}
+            </Button>
+          </div>
         )}
       </div>
     </ScrollArea>
