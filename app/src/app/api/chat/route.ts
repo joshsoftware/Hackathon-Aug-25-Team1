@@ -1,239 +1,124 @@
-import Anthropic from '@anthropic-ai/sdk';
+import { anthropic } from '@ai-sdk/anthropic';
+import { appendClientMessage, appendResponseMessages, createDataStreamResponse, createIdGenerator, streamText } from 'ai';
+import { getAllTools } from '@/lib/ai/tools';
+import { loadChat, saveChat } from '@/lib/ai/chat-store';
 
-// Set the runtime to nodejs
-export const runtime = 'nodejs';
-
-// Define CORS headers
-const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization'
-};
-
-// Define SSE headers
-const SSE_HEADERS = {
-  ...CORS_HEADERS,
-  'Content-Type': 'text/event-stream',
-  'Cache-Control': 'no-cache',
-  'Connection': 'keep-alive'
-};
-
-// Regular JSON response headers
-const JSON_HEADERS = {
-  ...CORS_HEADERS,
-  'Content-Type': 'application/json',
-};
-
-// Handle OPTIONS requests for CORS
-export async function OPTIONS() {
-  return new Response(null, {
-    status: 200,
-    headers: CORS_HEADERS,
-  });
-}
-
-// Helper function to format SSE messages
-function formatSSE(event: string, data: string) {
-  return `event: ${event}\ndata: ${data}\n\n`;
-}
-
-// Handle GET requests for SSE
-export async function GET(req: Request) {
-  try {
-    // For SSE requests, we need to get messages from URL parameters or from the server state
-    // Since we can't include a request body in GET requests with EventSource
-
-    // Set up SSE headers
-    const headers = new Headers(SSE_HEADERS);
-
-    // Create a ReadableStream for SSE
-    const stream = new ReadableStream({
-      start(controller) {
-        // Send an initial event to establish the connection
-        controller.enqueue(formatSSE('error', JSON.stringify({
-          error: "Use POST request with stream parameter to initiate streaming"
-        })));
-        controller.close();
-      }
-    });
-
-    // Return the streaming response
-    return new Response(stream, {
-      headers
-    });
-  } catch (error) {
-    console.error('Error processing GET request:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to process streaming request', details: String(error) }),
-      { status: 500, headers: JSON_HEADERS }
-    );
-  }
-}
-
-// Handle chat POST requests
 export async function POST(req: Request) {
   try {
-    console.log('API route called');
+    const { message, id } = await req.json();
+    const previousMessages = await loadChat(id);
 
-    // Check if API key is available
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return new Response(
-        JSON.stringify({ error: 'API key not configured' }),
-        { status: 500, headers: JSON_HEADERS }
-      );
-    }
-
-    // Parse request body
-    const body = await req.json();
-
-    // Get the raw messages from the request
-    const rawMessages = body.messages || [];
-    // Always use streaming for all requests
-    const streaming = true;
-
-    // Strip out any fields that the Anthropic API doesn't expect
-    const messages = rawMessages.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-
-    if (!messages || messages.length === 0) {
-      return new Response(
-        JSON.stringify({ error: 'No messages provided' }),
-        { status: 400, headers: JSON_HEADERS }
-      );
-    }
-
-    console.log(`Processing ${messages.length} messages with streaming: ${streaming}`);
-
-    // Extract the last user message
-    const lastMessage = messages[messages.length - 1];
-    console.log('Last message:', lastMessage.content);
-
-    // Initialize Anthropic client
-    const anthropic = new Anthropic({
-      apiKey: process.env.ANTHROPIC_API_KEY,
+    const messages = appendClientMessage({
+      messages: previousMessages,
+      message,
     });
 
-    console.log('Creating message with Anthropic client');
+    // Load all available tools
+    console.log("Loading available tools...");
+    const availableTools = await getAllTools();
+    console.log("Available tools loaded:", Object.keys(availableTools));
 
-    // Handle streaming response
-    if (streaming) {
-      try {
-        // Create a ReadableStream for SSE
-        const stream = new ReadableStream({
-          async start(controller) {
-            try {
-              // Initialize empty response text
-              let responseText = '';
-              let messageId = '';
+    return createDataStreamResponse({
+      execute: async dataStream => {
+        try {
+          console.log("Starting AI stream with executable tools...");
 
-              // Send an initial event to establish the connection
-              controller.enqueue(formatSSE('open', ''));
+          const result = streamText({
+            model: anthropic('claude-3-5-sonnet-20240620'),
+            system: `You are an AI Assistant with expertise in GitHub and Jira project management.
 
-              // Create a streaming request to Anthropic
-              const stream = await anthropic.messages.stream({
-                model: 'claude-opus-4-1-20250805',
-                max_tokens: 1024,
-                messages: messages,
+            You have access to comprehensive tools for:
+            - GitHub: Repository management, issue tracking, code search, user management
+            - Jira: Project management, issue tracking, workflow management, reporting
+            - File System: File and directory operations
+            - Memory: Persistent storage and retrieval of information
+
+            AUTONOMOUS OPERATION:
+            You are designed to be completely autonomous. You must:
+            1. Plan your own workflow to complete the user's request
+            2. Execute ALL necessary tool calls without asking for permission
+            3. Make decisions on behalf of the user when reasonable
+            4. Only stop when you need NEW information that wasn't provided
+            5. NEVER ask for confirmations like "ok" or "continue"
+            6. NEVER say "let me do X" - just do it
+
+            GITHUB CAPABILITIES:
+            - Search and analyze repositories
+            - Get detailed repository information
+            - Track issues and pull requests
+            - Analyze code and contributors
+            - Search across codebases
+
+            JIRA CAPABILITIES:
+            - Project management and analysis
+            - Issue tracking and management
+            - Workflow and status management
+            - User and permission management
+            - Dashboard and reporting
+
+            MEMORY INTEGRATION:
+            You have persistent memory tools for storing and retrieving information:
+            - Save important data, preferences, and context
+            - Retrieve stored information when relevant
+            - Build context across conversations
+
+            AUTONOMOUS WORKFLOW:
+            1. IMMEDIATELY execute necessary tool calls to complete the user's request
+            2. Use multiple tools in sequence when needed
+            3. Save important information to memory automatically
+            4. Provide comprehensive, actionable responses
+
+            CRITICAL AUTONOMOUS RULES:
+            - NEVER ask "Would you like me to remember this?" - Just save it automatically
+            - NEVER ask "Should I continue?" - Just continue
+            - NEVER wait for "ok" confirmations - Keep working
+            - Complete the entire task in as few interactions as possible
+            - Make reasonable assumptions and decisions
+
+            BE COMPLETELY AUTONOMOUS - NO CONFIRMATIONS NEEDED!
+
+            IMPORTANT: All tools are now executable directly. When you call a tool, it will execute immediately and return results. Use the tools to gather information and complete tasks autonomously.
+
+            Always use the appropriate tools to get accurate, real-time data and provide helpful, actionable responses.`,
+            messages,
+            tools: availableTools, // Pass the tools to the LLM
+            async onFinish({ response }) {
+              console.log("LLM stream finished. Saving chat...");
+              await saveChat({
+                id,
+                messages: appendResponseMessages({
+                  messages, // Pass the original messages
+                  responseMessages: response.messages,
+                }),
               });
+              console.log("Chat saved.");
+            },
+            // id format for server-side messages:
+            experimental_generateMessageId: createIdGenerator({
+              prefix: 'msgs',
+              size: 16,
+            }),
+          });
 
-              // Initialize message start
-              controller.enqueue(formatSSE('message_start', JSON.stringify({
-                role: 'assistant',
-                content: ''
-              })));
+          // consume the stream to ensure it runs to completion & triggers onFinish
+          // even when the client response is aborted:
+          result.consumeStream().catch(error => {
+              console.error("Error consuming stream:", error);
+          });
+          console.log("Merging result into data stream.");
+          result.mergeIntoDataStream(dataStream);
 
-              // Process all stream events using for-await
-              // This avoids TypeScript issues with event names
-              try {
-                for await (const streamEvent of stream) {
-                  // Process different event types
-                  if (streamEvent.type === 'content_block_delta') {
-                    if (streamEvent.delta.type === 'text_delta') {
-                      responseText += streamEvent.delta.text;
-                      controller.enqueue(formatSSE('text', JSON.stringify({ text: streamEvent.delta.text })));
-                    }
-                  } else if (streamEvent.type === 'message_start') {
-                    messageId = streamEvent.message.id;
-                  } else if (streamEvent.type === 'message_delta') {
-                    // Use type assertion to access stop_reason property
-                    const delta = streamEvent.delta as any;
-                    if (delta.stop_reason) {
-                      // Message is complete
-                      controller.enqueue(formatSSE('message_stop', JSON.stringify({
-                        id: messageId,
-                        role: 'assistant',
-                        content: responseText
-                      })));
-
-                      // We're done
-                      break;
-                    }
-                  }
-                }
-              } catch (streamError: any) {
-                console.error('Error in stream processing:', streamError);
-                controller.enqueue(formatSSE('error', JSON.stringify({
-                  error: streamError.message || 'Stream processing error'
-                })));
-              }
-
-              // Close the controller when done
-              controller.close();
-
-              // Handle any errors
-              stream.on('error', (error) => {
-                console.error('Streaming error:', error);
-                controller.enqueue(formatSSE('error', JSON.stringify({
-                  error: error.message || 'Streaming error occurred'
-                })));
-                controller.close();
-              });
-
-              // Wait for the stream to complete
-              await stream.finalMessage();
-
-            } catch (error: any) {
-              console.error('Error in stream controller:', error);
-              controller.enqueue(formatSSE('error', JSON.stringify({
-                error: error.message || 'Stream controller error'
-              })));
-              controller.close();
-            }
-          }
-        });
-
-        // Return the streaming response
-        return new Response(stream, {
-          headers: SSE_HEADERS
-        });
-      } catch (error: any) {
-        console.error('Error setting up streaming:', error);
-        return new Response(
-          JSON.stringify({
-            error: 'Failed to set up streaming',
-            details: error.toString()
-          }),
-          { status: 500, headers: JSON_HEADERS }
-        );
-      }
-    }
-
-    // Always use streaming for simplicity and better UX
-    console.log('Using streaming API for all requests');
-    return new Response(
-      JSON.stringify({
-        error: 'This endpoint now only supports streaming responses. Please set stream=true in your request.'
-      }),
-      { status: 400, headers: JSON_HEADERS }
-    );
-
+        } catch (error) {
+           console.error("Error during data stream execution:", error);
+        }
+      },
+    });
   } catch (error) {
-    console.error('Error processing request:', error);
-    return new Response(
-      JSON.stringify({ error: 'Failed to process request', details: String(error) }),
-      { status: 500, headers: JSON_HEADERS }
-    );
+     console.error("Error in POST /api/chat:", error);
+     // Return a generic error response
+     return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
+       status: 500,
+       headers: { 'Content-Type': 'application/json' },
+     });
   }
 }
