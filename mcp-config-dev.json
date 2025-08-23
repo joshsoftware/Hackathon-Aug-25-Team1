@@ -1,0 +1,17 @@
+{
+    "mcpServers": {
+        "jira": {
+            "command": "npx",
+            "args": [
+                "tsx",
+                "app/src/mcp/jira-mcp-server.ts"
+            ],
+            "cwd": ".",
+            "env": {
+                "JIRA_BASE_URL": "https://qrorder.atlassian.net",
+                "JIRA_EMAIL": "shubham.bayas@joshsoftware.com",
+                "JIRA_API_TOKEN": "ATATT3xFfGF0plHMWlnxXBZrKcH2VXFLi9i5ljyHg4P2GoZ_G8W3lsXzhKWh8jIQJ_Wqsmdht67ycuV7w1FhuGy8Q9QqPrXZNFn8Mz1ctP6aZlMaFbanyEYuv5qD9vxw1G9AvHBqsIQrVQ4VHAn-yehcUw0tRfYVDP2ZZzuGK2HgwDtBmhELw5w=9D4156DA"
+            }
+        }
+    }
+}

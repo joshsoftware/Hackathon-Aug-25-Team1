@@ -7,7 +7,9 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "mcp:jira": "tsx src/mcp/jira-mcp-server.ts"
+    "mcp:jira": "tsx src/mcp/jira-mcp-server.ts",
+    "mcp:claude": "tsx src/mcp/claude-mcp-server.ts",
+    "build:mcp": "tsc --project tsconfig.mcp.json"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.4",
