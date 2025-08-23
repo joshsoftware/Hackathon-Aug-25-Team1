@@ -79,6 +79,16 @@ export async function POST(request: NextRequest) {
         result = await mcpClient.getMergedPullRequests(owner, repo, limit, fromDate, toDate);
         break;
         
+      case 'comments':
+        if (!owner || !repo || !username) {
+          return NextResponse.json(
+            { error: 'Owner, repo, and username are required for user comments' },
+            { status: 400 }
+          );
+        }
+        result = await mcpClient.getUserComments(owner, repo, username, limit, fromDate, toDate);
+        break;
+        
       default:
         return NextResponse.json(
           { error: 'Invalid activity type' },
@@ -162,6 +172,47 @@ export async function POST(request: NextRequest) {
         
         parsedData.pull_requests = mergedPRs;
         parsedData.total_pull_requests = mergedPRs.length;
+      }
+      
+      // Process comments data
+      if (activityType === 'comments') {
+        // Initialize comments array if it doesn't exist
+        if (!parsedData.comments) {
+          parsedData.comments = [];
+        } else if (!Array.isArray(parsedData.comments)) {
+          // If comments is not an array, convert it to an array
+          parsedData.comments = [parsedData.comments];
+        }
+        
+        // Apply date filtering if needed
+        if (fromDate || toDate) {
+          const fromTimestamp = fromDate ? new Date(fromDate).getTime() : 0;
+          const toTimestamp = toDate ? new Date(toDate).getTime() : Infinity;
+          
+          const filteredComments = parsedData.comments.filter((comment: { created_at: string }) => {
+            const commentDate = new Date(comment.created_at).getTime();
+            return commentDate >= fromTimestamp && commentDate <= toTimestamp;
+          });
+          
+          parsedData.comments = filteredComments;
+        }
+        
+        // Filter by username if provided
+        if (username) {
+          const filteredComments = parsedData.comments.filter((comment: { author: string }) => {
+            return comment.author.toLowerCase() === username.toLowerCase();
+          });
+          
+          parsedData.comments = filteredComments;
+        }
+        
+        // Update total comments count
+        parsedData.total_comments = parsedData.comments.length;
+        
+        // Add username to response data if provided
+        if (username) {
+          parsedData.user = username;
+        }
       }
       
       // Username filtering when both username and repository info are provided

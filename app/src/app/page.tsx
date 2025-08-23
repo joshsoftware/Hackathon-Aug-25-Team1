@@ -9,6 +9,7 @@ interface GitHubActivity {
   total_commits?: number;
   total_issues?: number;
   total_pull_requests?: number;
+  total_comments?: number;
   date_range?: {
     from: string;
     to: string;
@@ -45,6 +46,15 @@ interface GitHubActivity {
     updated_at: string;
     merged_at: string | null;
     body: string;
+  }>;
+  comments?: Array<{
+    id: string;
+    author: string;
+    body: string;
+    created_at: string;
+    issue_url?: string;
+    issue_number?: number;
+    pr_number?: number;
   }>;
 }
 
@@ -124,7 +134,7 @@ export default function Home() {
       const payload: any = { username, activityType };
       
       // Add owner and repo if needed for specific activity types
-      if (activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls') {
+      if (activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls' || activityType === 'comments') {
         payload.owner = owner;
         payload.repo = repo;
       }
@@ -292,6 +302,27 @@ export default function Home() {
           {pr.body && (
             <div className="text-sm text-gray-700 bg-gray-100 p-2 rounded">
               {pr.body}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderComments = (comments: any[]) => (
+    <div className="space-y-4">
+      {comments.map((comment, index) => (
+        <div key={comment.id || index} className="border rounded-lg p-4 bg-gray-50">
+          <div className="flex justify-between items-start mb-2">
+            <div>
+              <span className="font-semibold">Comment on {comment.issue_url ? 'Issue' : 'PR'} #{comment.issue_number || comment.pr_number}</span>
+            </div>
+            <span className="text-sm text-gray-500">{formatDate(comment.created_at)}</span>
+          </div>
+          <div className="text-sm text-gray-600 mb-2">by {comment.author}</div>
+          {comment.body && (
+            <div className="text-sm text-gray-700 bg-gray-100 p-2 rounded">
+              {comment.body}
             </div>
           )}
         </div>
@@ -553,7 +584,7 @@ export default function Home() {
               </div>
               
               {/* Repository fields for specific activity types */}
-              {(activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls') && (
+              {(activityType === 'commits' || activityType === 'issues' || activityType === 'pulls' || activityType === 'merged_pulls' || activityType === 'comments') && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="ownerUser" className="block text-sm font-medium text-gray-700 mb-1">
@@ -601,6 +632,7 @@ export default function Home() {
                   <option value="issues">Issues</option>
                   <option value="pulls">Pull Requests</option>
                   <option value="merged_pulls">Merged Pull Requests</option>
+                  <option value="comments">Comments</option>
                 </select>
               </div>
               
@@ -731,12 +763,14 @@ export default function Home() {
               {data.total_commits && `Total Commits: ${data.total_commits}`}
               {data.total_issues && `Total Issues: ${data.total_issues}`}
               {data.total_pull_requests && `Total Pull Requests: ${data.total_pull_requests}`}
+              {data.total_comments && `Total Comments: ${data.total_comments}`}
             </div>
 
             {data.events && renderActivityEvents(data.events)}
             {data.commits && renderCommits(data.commits)}
             {data.issues && renderIssues(data.issues)}
             {data.pull_requests && renderPullRequests(data.pull_requests)}
+            {data.comments && renderComments(data.comments)}
           </div>
         )}
 
