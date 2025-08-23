@@ -67,7 +67,10 @@ export default function Home() {
   const [claudeLoading, setClaudeLoading] = useState(false);
   const [claudeResponse, setClaudeResponse] = useState<any>(null);
   const [claudeError, setClaudeError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'form' | 'prompt'>('prompt');
+  const [activeTab, setActiveTab] = useState<'form' | 'prompt' | 'user'>('prompt');
+  
+  // User activity state
+  const [username, setUsername] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +101,52 @@ export default function Home() {
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to fetch data');
+      }
+
+      setData(result.data);
+      setRawResponse(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUserActivitySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setData(null);
+    setRawResponse(null);
+    
+    try {
+      // Prepare request payload for user activity
+      const payload: any = { username, activityType };
+      
+      // Add owner and repo if needed for specific activity types
+      if (activityType === 'commits' || activityType === 'issues' || activityType === 'pulls') {
+        payload.owner = owner;
+        payload.repo = repo;
+      }
+      
+      // Add date range if enabled
+      if (useDateRange) {
+        if (fromDate) payload.fromDate = fromDate;
+        if (toDate) payload.toDate = toDate;
+      }
+      
+      const response = await fetch('/api/github-mcp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch user data');
       }
 
       setData(result.data);
@@ -283,7 +332,18 @@ export default function Home() {
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Structured Form
+              Repository Activity
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('user')}
+              className={`px-4 py-2 font-medium ${
+                activeTab === 'user'
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              User Activity
             </button>
           </div>
 
@@ -367,7 +427,7 @@ export default function Home() {
             </div>
           )}
 
-          {/* Structured Form Tab */}
+          {/* Repository Activity Tab */}
           {activeTab === 'form' && (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -468,7 +528,131 @@ export default function Home() {
                 disabled={loading}
                 className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Fetching Data...' : 'Fetch GitHub Activity'}
+                {loading ? 'Fetching Data...' : 'Fetch Repository Activity'}
+              </button>
+            </form>
+          )}
+
+          {/* User Activity Tab */}
+          {activeTab === 'user' && (
+            <form onSubmit={handleUserActivitySubmit} className="space-y-4">
+              <div>
+                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+                  GitHub Username
+                </label>
+                <input
+                  type="text"
+                  id="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="e.g., octocat, torvalds"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                />
+              </div>
+              
+              {/* Repository fields for specific activity types */}
+              {(activityType === 'commits' || activityType === 'issues' || activityType === 'pulls') && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="ownerUser" className="block text-sm font-medium text-gray-700 mb-1">
+                      Repository Owner
+                    </label>
+                    <input
+                      type="text"
+                      id="ownerUser"
+                      value={owner}
+                      onChange={(e) => setOwner(e.target.value)}
+                      placeholder="e.g., facebook, microsoft"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="repoUser" className="block text-sm font-medium text-gray-700 mb-1">
+                      Repository Name
+                    </label>
+                    <input
+                      type="text"
+                      id="repoUser"
+                      value={repo}
+                      onChange={(e) => setRepo(e.target.value)}
+                      placeholder="e.g., react, vscode"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="userActivityType" className="block text-sm font-medium text-gray-700 mb-1">
+                  Activity Type
+                </label>
+                <select
+                  id="userActivityType"
+                  value={activityType}
+                  onChange={(e) => setActivityType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="user_activity">All Activity</option>
+                  <option value="commits">Recent Commits</option>
+                  <option value="issues">Issues</option>
+                  <option value="pulls">Pull Requests</option>
+                </select>
+              </div>
+              
+              {/* Date Range Controls */}
+              <div className="mt-4">
+                <div className="flex items-center mb-2">
+                  <input
+                    type="checkbox"
+                    id="useDateRangeUser"
+                    checked={useDateRange}
+                    onChange={(e) => setUseDateRange(e.target.checked)}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="useDateRangeUser" className="ml-2 block text-sm font-medium text-gray-700">
+                    Specify Date Range
+                  </label>
+                </div>
+                
+                {useDateRange && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label htmlFor="fromDateUser" className="block text-sm font-medium text-gray-700 mb-1">
+                        From Date
+                      </label>
+                      <input
+                        type="date"
+                        id="fromDateUser"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="toDateUser" className="block text-sm font-medium text-gray-700 mb-1">
+                        To Date
+                      </label>
+                      <input
+                        type="date"
+                        id="toDateUser"
+                        value={toDate}
+                        onChange={(e) => setToDate(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Fetching Data...' : 'Fetch User Activity'}
               </button>
             </form>
           )}
@@ -536,6 +720,7 @@ export default function Home() {
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">
               {data.repository && `${data.repository} - `}
+              {data.user && `${data.user} - `}
               {activityType.charAt(0).toUpperCase() + activityType.slice(1)}
             </h2>
             
@@ -556,7 +741,7 @@ export default function Home() {
         {rawResponse && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Claude's Raw Response
+              Raw Response
             </h3>
             <pre className="bg-gray-100 p-4 rounded text-sm overflow-x-auto">
               {rawResponse.type === 'text' ? rawResponse.text : JSON.stringify(rawResponse, null, 2)}

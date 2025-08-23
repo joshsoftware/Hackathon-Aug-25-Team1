@@ -93,52 +93,91 @@ export async function POST(request: NextRequest) {
     }
     
     // Apply date filtering on our side since the MCP server doesn't support it
-    if (parsedData && (fromDate || toDate)) {
-      const fromTimestamp = fromDate ? new Date(fromDate).getTime() : 0;
-      const toTimestamp = toDate ? new Date(toDate).getTime() : Infinity;
-      
-      // Filter commits if present
-      if (parsedData.commits && Array.isArray(parsedData.commits)) {
-        const filteredCommits = parsedData.commits.filter((commit: { date: string }) => {
-          const commitDate = new Date(commit.date).getTime();
-          return commitDate >= fromTimestamp && commitDate <= toTimestamp;
-        });
+    if (parsedData) {
+      // Date filtering
+      if (fromDate || toDate) {
+        const fromTimestamp = fromDate ? new Date(fromDate).getTime() : 0;
+        const toTimestamp = toDate ? new Date(toDate).getTime() : Infinity;
         
-        parsedData.commits = filteredCommits;
-        parsedData.total_commits = filteredCommits.length;
+        // Filter commits if present
+        if (parsedData.commits && Array.isArray(parsedData.commits)) {
+          const filteredCommits = parsedData.commits.filter((commit: { date: string }) => {
+            const commitDate = new Date(commit.date).getTime();
+            return commitDate >= fromTimestamp && commitDate <= toTimestamp;
+          });
+          
+          parsedData.commits = filteredCommits;
+          parsedData.total_commits = filteredCommits.length;
+        }
+        
+        // Filter issues if present
+        if (parsedData.issues && Array.isArray(parsedData.issues)) {
+          const filteredIssues = parsedData.issues.filter((issue: { created_at: string }) => {
+            const issueDate = new Date(issue.created_at).getTime();
+            return issueDate >= fromTimestamp && issueDate <= toTimestamp;
+          });
+          
+          parsedData.issues = filteredIssues;
+          parsedData.total_issues = filteredIssues.length;
+        }
+        
+        // Filter pull requests if present
+        if (parsedData.pull_requests && Array.isArray(parsedData.pull_requests)) {
+          const filteredPRs = parsedData.pull_requests.filter((pr: { created_at: string }) => {
+            const prDate = new Date(pr.created_at).getTime();
+            return prDate >= fromTimestamp && prDate <= toTimestamp;
+          });
+          
+          parsedData.pull_requests = filteredPRs;
+          parsedData.total_pull_requests = filteredPRs.length;
+        }
+        
+        // Filter events if present
+        if (parsedData.events && Array.isArray(parsedData.events)) {
+          const filteredEvents = parsedData.events.filter((event: { created_at: string }) => {
+            const eventDate = new Date(event.created_at).getTime();
+            return eventDate >= fromTimestamp && eventDate <= toTimestamp;
+          });
+          
+          parsedData.events = filteredEvents;
+          parsedData.total_events = filteredEvents.length;
+        }
       }
       
-      // Filter issues if present
-      if (parsedData.issues && Array.isArray(parsedData.issues)) {
-        const filteredIssues = parsedData.issues.filter((issue: { created_at: string }) => {
-          const issueDate = new Date(issue.created_at).getTime();
-          return issueDate >= fromTimestamp && issueDate <= toTimestamp;
-        });
+      // Username filtering when both username and repository info are provided
+      if (username && (owner && repo) && activityType !== 'user_activity') {
+        // Filter commits by username
+        if (parsedData.commits && Array.isArray(parsedData.commits)) {
+          const filteredCommits = parsedData.commits.filter((commit: { author: string }) => {
+            return commit.author.toLowerCase() === username.toLowerCase();
+          });
+          
+          parsedData.commits = filteredCommits;
+          parsedData.total_commits = filteredCommits.length;
+        }
         
-        parsedData.issues = filteredIssues;
-        parsedData.total_issues = filteredIssues.length;
-      }
-      
-      // Filter pull requests if present
-      if (parsedData.pull_requests && Array.isArray(parsedData.pull_requests)) {
-        const filteredPRs = parsedData.pull_requests.filter((pr: { created_at: string }) => {
-          const prDate = new Date(pr.created_at).getTime();
-          return prDate >= fromTimestamp && prDate <= toTimestamp;
-        });
+        // Filter issues by username
+        if (parsedData.issues && Array.isArray(parsedData.issues)) {
+          const filteredIssues = parsedData.issues.filter((issue: { author: string }) => {
+            return issue.author.toLowerCase() === username.toLowerCase();
+          });
+          
+          parsedData.issues = filteredIssues;
+          parsedData.total_issues = filteredIssues.length;
+        }
         
-        parsedData.pull_requests = filteredPRs;
-        parsedData.total_pull_requests = filteredPRs.length;
-      }
-      
-      // Filter events if present
-      if (parsedData.events && Array.isArray(parsedData.events)) {
-        const filteredEvents = parsedData.events.filter((event: { created_at: string }) => {
-          const eventDate = new Date(event.created_at).getTime();
-          return eventDate >= fromTimestamp && eventDate <= toTimestamp;
-        });
+        // Filter pull requests by username
+        if (parsedData.pull_requests && Array.isArray(parsedData.pull_requests)) {
+          const filteredPRs = parsedData.pull_requests.filter((pr: { author: string }) => {
+            return pr.author.toLowerCase() === username.toLowerCase();
+          });
+          
+          parsedData.pull_requests = filteredPRs;
+          parsedData.total_pull_requests = filteredPRs.length;
+        }
         
-        parsedData.events = filteredEvents;
-        parsedData.total_events = filteredEvents.length;
+        // Add username to response data
+        parsedData.user = username;
       }
     }
 
