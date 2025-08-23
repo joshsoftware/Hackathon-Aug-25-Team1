@@ -1,0 +1,40 @@
+# App-specific .gitignore
+# Root .gitignore handles most patterns, this covers app-specific items
+
+# Next.js app-specific
+/.next/
+/out/
+/build
+
+# Next.js trace files (can cause permission issues on Windows)
+/.next/trace
+/.next/cache/
+/.next/server/
+/.next/static/
+/.next/standalone/
+
+# App-specific TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# App-specific environment files
+.env*
+
+# App-specific build artifacts
+/dist/
+
+# App-specific testing
+/coverage
+
+# Vercel deployment
+.vercel
+
+# App-specific temporary files
+.turbo
+
+# Next.js build artifacts that may cause permission issues
+.next/trace
+.next/cache
+.next/server
+.next/static
+.next/standalone

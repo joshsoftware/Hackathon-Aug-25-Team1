@@ -1,0 +1,8 @@
+{
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.17.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.4"
+  }
+}
