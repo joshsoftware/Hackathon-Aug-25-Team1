@@ -25,9 +25,9 @@ const server = new Server(
 
 // Initialize Claude client
 const claudeConfig: ClaudeConfig = {
-    apiKey: process.env.CLAUDE_API_KEY || 'your-api-key',
+    apiKey: process.env.CLAUDE_API_KEY || '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',
     baseUrl: process.env.CLAUDE_BASE_URL || 'https://api.anthropic.com',
-    model: process.env.CLAUDE_MODEL || 'claude-3-opus-20240229',
+    model: process.env.CLAUDE_MODEL || 'claude-3-haiku-20240307',
 };
 
 const claudeClient = new ClaudeMCPClient(claudeConfig);

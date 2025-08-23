@@ -40,7 +40,7 @@ export class ClaudeMCPClient {
     constructor(config: ClaudeConfig) {
         this.config = {
             baseUrl: 'https://api.anthropic.com',
-            model: 'claude-3-opus-20240229',
+            model: 'claude-3-haiku-20240307',
             ...config
         };
     }
